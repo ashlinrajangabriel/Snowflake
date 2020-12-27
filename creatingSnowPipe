@@ -1,0 +1,20 @@
+  use database "SALESDEMO";
+  
+  create or replace file format CUSTOMER_CSV_FORMAT
+  field_delimiter = ',' 
+  skip_header = 1
+  field_optionally_enclosed_by = '"'
+  null_if = ('NULL', 'null') 
+  empty_field_as_null = true;
+  
+  create or replace stage CSV_SNOWPIPE file_format = "CUSTOMER_CSV_FORMAT" ;
+  
+  create or replace pipe demo_snowpipe_customer_pipe  as copy into "SALESDEMO"."SALESDEMO"."CUSTOMERMASTER"
+  from @"SALESDEMO"."PUBLIC"."CSV_SNOWPIPE"
+  file_format = CUSTOMER_CSV_FORMAT;
+  
+
+
+
+https://medium.com/@sunilkhaire17/loading-flat-file-data-into-snowflake-using-snowpipe-dcf8833656f2
+https://docs.snowflake.com/en/user-guide/data-load-external-tutorial.html
