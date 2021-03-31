@@ -1,0 +1,230 @@
+select current_account();
+
+USE ROLE ACCOUNTADMIN;
+
+
+USE ROLE SYSADMIN;
+
+USE ROLE ACCOUNTADMIN;
+
+SHOW SHARES;
+
+DROP DATABASE THAT_COOL_SAMPLE_STUFF;
+
+CREATE DATABASE "THAT_COOL_SAMPLE_STUFF" FROM SHARE SFC_SAMPLES."SAMPLE_DATA";
+GRANT IMPORTED PRIVILEGES ON DATABASE "THAT_COOL_SAMPLE_STUFF" TO ROLE "SYSADMIN";
+
+ALTER DATABASE THAT_COOL_SAMPLE_STUFF RENAME TO THAT_REALLY_COOL_SAMPLE_STUFF;
+
+ALTER DATABASE THAT_REALLY_COOL_SAMPLE_STUFF SET COMMENT = 'Holds TPC sample data for speed testing';
+
+USE ROLE ACCOUNTADMIN;
+
+DROP DATABASE SNOWFLAKE;
+
+ALTER DATABASE SNOWFLAKE RENAME TO MY_ACCOUNT_USAGE;
+
+ALTER DATABASE THAT_REALLY_COOL_SAMPLE_STUFF RENAME TO SNOWFLAKE_SAMPLE_DATA;
+
+GRANT IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE TO ROLE SYSADMIN;
+
+USE ROLE SYSADMIN;
+
+
+
+
+
+--Check the range of values in the Market Segment Column
+SELECT DISTINCT c_mktsegment FROM "SNOWFLAKE_SAMPLE_DATA"."TPCH_SF1"."CUSTOMER";
+
+--Find out which Market Segments have the most customers
+SELECT c_mktsegment, COUNT(*) FROM "SNOWFLAKE_SAMPLE_DATA"."TPCH_SF1"."CUSTOMER"  GROUP BY c_mktsegment ORDER BY COUNT(*);
+
+--Look at the Nations table
+SELECT * FROM "SNOWFLAKE_SAMPLE_DATA"."TPCH_SF1"."NATION"
+
+
+--Join the Customer and Nations table together
+
+SELECT c_mktsegment, n_name FROM "SNOWFLAKE_SAMPLE_DATA"."TPCH_SF1"."CUSTOMER" c 
+JOIN "SNOWFLAKE_SAMPLE_DATA"."TPCH_SF1"."NATION" n 
+ON c.c_nationkey = n.n_nationkey
+ORDER BY c_mktsegment;
+
+
+--Join Customer and Nation--Roll up (Aggregate) by Market Segment and Nation
+
+SELECT c_mktsegment, n_name, count(*) 
+FROM "SNOWFLAKE_SAMPLE_DATA"."TPCH_SF1"."CUSTOMER" c 
+JOIN "SNOWFLAKE_SAMPLE_DATA"."TPCH_SF1"."NATION" n 
+ON c.c_nationkey= n.n_nationkey 
+GROUP BY c_mktsegment, n.n_name
+ORDER BY c_mktsegment
+
+
+
+--Run this script to set up a database that holds 
+--International information like currencies, ISO codes, etc.
+
+USE ROLE SYSADMIN;
+
+CREATE DATABASE INTL_DB;
+
+USE SCHEMA INTL_DB.PUBLIC;
+
+CREATE WAREHOUSE INTL_WH WITH WAREHOUSE_SIZE = 'XSMALL' WAREHOUSE_TYPE = 'STANDARD' AUTO_SUSPEND = 600 AUTO_RESUME = TRUE;
+
+USE WAREHOUSE INTL_WH;
+
+--Set your Default Warehouse to the Warehouse you just created
+--replace 'FDNEIGE' with your User Name
+
+ALTER USER ASHGR  SET DEFAULT_WAREHOUSE=INTL_WH;
+
+//LAB 2 - EXERCISE 6 ----------------------------------;
+
+CREATE TABLE "INTL_DB"."PUBLIC"."INT_STDS_ORG_3661"
+("ISO_COUNTRY_NAME" varchar(100) NOT NULL,
+"COUNTRY_NAME_OFFICIAL" varchar(200) NOT NULL,
+"SOVEREIGNITY" varchar(40) NOT NULL,
+"ALPHA_CODE_2DIGIT" varchar(2) NOT NULL,
+"ALPHA_CODE_3DIGIT" varchar(3) NOT NULL,
+"NUMERIC_COUNTRY_CODE" integer not null,
+"ISO_SUBDIVISION" varchar(15) NOT NULL,
+"INTERNET_DOMAIN_CODE" varchar(10) NOT NULL
+)
+COMMENT = 'ISO 3661 information on countries';
+
+
+CREATE TABLE "INTL_DB"."PUBLIC"."CURRENCIES"
+(
+"CURRENCY_ID" INTEGER NOT NULL,
+"CURRENCY_CHAR_CODE" varchar(3) NOT NULL,
+"CURRENCY_SYMBOL" varchar(4) NOT NULL,
+"CURRENCY_DIGITAL_CODE" varchar(3) NOT NULL,
+"CURRENCY_DIGITAL_NAME" varchar(30) NOT NULL
+)
+COMMENT = 'Information about currencies including character codes, symbols, digital codes, etc.';
+
+
+CREATE TABLE "INTL_DB"."PUBLIC"."COUNTRY_CODE_TO_CURRENCY_CODE"
+(
+"COUNTRY_CHAR_CODE" Varchar(3) NOT NULL,
+"COUNTRY_NUMERIC_CODE" INTEGER NOT NULL,
+"COUNTRY_NAME" Varchar(100) NOT NULL,
+"CURRENCY_NAME" Varchar(100) NOT NULL,
+"CURRENCY_CHAR_CODE" Varchar(3) NOT NULL,
+"CURRENCY_NUMERIC_CODE" INTEGER NOT NULL
+)
+COMMENT = 'Many to many code lookup table';
+
+//LAB 2 - EXERCISE 7 ----------------------------------;
+
+//********************FILE FORMATS******************************
+CREATE OR REPLACE FILE FORMAT "INTL_DB"."PUBLIC".PIPE_DBLQUOTE_HEADER_CR
+TYPE = 'CSV'
+COMPRESSION = 'AUTO'
+FIELD_DELIMITER = '|'
+RECORD_DELIMITER = '\r'
+SKIP_HEADER = 1
+FIELD_OPTIONALLY_ENCLOSED_BY = 'NONE'
+TRIM_SPACE = FALSE
+ERROR_ON_COLUMN_COUNT_MISMATCH = TRUE
+ESCAPE = 'NONE'
+ESCAPE_UNENCLOSED_FIELD = '\042'
+DATE_FORMAT = 'AUTO'
+TIMESTAMP_FORMAT = 'AUTO'
+NULL_IF = ('\\N');
+           
+CREATE FILE FORMAT "INTL_DB"."PUBLIC".CSV_COMMA_LF_HEADER
+TYPE = 'CSV'
+COMPRESSION = 'AUTO'
+FIELD_DELIMITER = ','
+RECORD_DELIMITER = '\n'
+SKIP_HEADER = 1
+FIELD_OPTIONALLY_ENCLOSED_BY = 'NONE'
+TRIM_SPACE = FALSE
+ERROR_ON_COLUMN_COUNT_MISMATCH = TRUE
+ESCAPE = 'NONE'
+ESCAPE_UNENCLOSED_FIELD = '\134'
+DATE_FORMAT = 'AUTO'
+TIMESTAMP_FORMAT = 'AUTO'
+NULL_IF = ('\\N');
+
+//LAB 2 - EXERCISE 8 ----------------------------------;
+-- Load the three tables using the csv files provided. 
+
+CREATE OR REPLACE STAGE "INTL_DB"."PUBLIC".S3_STAGE 
+    URL = 's3://888
+    /data' 
+    CREDENTIALS = (
+      AWS_KEY_ID = 'L' 
+      AWS_SECRET_KEY = ''
+    );
+    
+    
+COPY INTO "INTL_DB"."PUBLIC"."INT_STDS_ORG_3661" 
+FROM  @public.S3_STAGE/ISO_Countries_UTF8_pipe.csv
+FILE_FORMAT = '"INTL_DB"."PUBLIC"."PIPE_DBLQUOTE_HEADER_CR"'
+ON_ERROR = 'CONTINUE';
+
+
+    
+COPY INTO "INTL_DB"."PUBLIC"."CURRENCIES" 
+FROM  @public.S3_STAGE/currencies.csv
+FILE_FORMAT = '"INTL_DB"."PUBLIC"."CSV_COMMA_LF_HEADER"'
+ON_ERROR = 'CONTINUE';
+
+    
+COPY INTO "INTL_DB"."PUBLIC"."COUNTRY_CODE_TO_CURRENCY_CODE" 
+FROM  @public.S3_STAGE/country_code_to_currency_code.csv
+FILE_FORMAT = '"INTL_DB"."PUBLIC"."CSV_COMMA_LF_HEADER"'
+ON_ERROR = 'CONTINUE';
+
+//LAB 2 - EXERCISE 9 ----------------------------------;
+--Confirm the files are loaded
+select * from  "INTL_DB"."PUBLIC"."INT_STDS_ORG_3661" ;
+select * from "INTL_DB"."PUBLIC"."CURRENCIES" ;
+select * from "INTL_DB"."PUBLIC"."COUNTRY_CODE_TO_CURRENCY_CODE" ;
+
+//LAB 2 - EXERCISE 10 ----------------------------------;
+
+DROP VIEW "INTL_DB"."PUBLIC"."NATIONS_SAMPLE_PLUS_ISO";
+SELECT n_nationkey, n_name, n_regionkey, iso_country_name, country_name_official,alpha_code_2digit
+FROM "INTL_DB"."PUBLIC"."INT_STDS_ORG_3661" i
+JOIN "SNOWFLAKE_SAMPLE_DATA"."TPCH_SF1"."NATION" n
+ON UPPER(i.iso_country_name)=n.n_name;
+
+//LAB 2 - EXERCISE 11, 12 ----------------------------------;
+--Use the WebUI to open a Create View window.;
+--Paste the code from Exercise 10 into the View Definition.;
+USE ROLE ACCOUNTADMIN;
+GRANT OWNERSHIP
+   ON view "INTL_DB"."PUBLIC"."COUNTRY_CODE_TO_CURRENCY_CODE"  
+   TO ROLE SYSADMIN
+   COPY CURRENT GRANTS ;
+
+USE ROLE SYSADMIN;
+
+//LAB 2 - EXERCISE 13 ----------------------------------;
+CREATE VIEW SIMPLE_CURRENCY
+AS
+SELECT COUNTRY_CHAR_CODE as CTY_CODE
+,CURRENCY_CHAR_CODE as CUR_CODE
+FROM "INTL_DB"."PUBLIC"."COUNTRY_CODE_TO_CURRENCY_CODE";
+
+//LAB 2 - EXERCISE 14 ----------------------------------;
+--Refresh the Navigation tree and preview the data in your views. 
+
+
+
+
+ALTER VIEW "INTL_DB"."PUBLIC"."NATIONS_SAMPLE_PLUS_ISO" set secure;
+
+
+ALTER VIEW "INTL_DB"."PUBLIC"."SIMPLE_CURRENCY" set secure;
+
+
+
+
+
